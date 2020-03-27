@@ -1,0 +1,5 @@
+numpy==1.16.4
+PIL==6.2.1
+cv2==4.1.2
+pytesseract
+re==2.2.1
