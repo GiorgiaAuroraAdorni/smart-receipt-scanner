@@ -2,7 +2,7 @@
 
 **Smart receipt scanner** is an easy converter of invoices and receipt images into an csv file containing a list of products and prices.
 
-### Feature
+### Features
 
 The script is able to work with images already cropped and of good quality, for example generated with smartphone scanning apps.
 
@@ -17,8 +17,7 @@ The current version support many languages but uses Italian as default. In order
 For macOS, using homebrew, run:
 
 ```sh
-$ brew install tesseract
-$ brew install tesseract-lang
+$ brew install tesseract tesseract-lang
 ```
 
 ### Installation

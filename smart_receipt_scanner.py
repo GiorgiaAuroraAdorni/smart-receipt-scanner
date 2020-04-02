@@ -36,8 +36,9 @@ def isfloat(value):
     :return: True if the parameter is a float, False otherwise
     """
     try:
-        float(value)
-        return True
+        float_regex = '^([0-9]+\\.)[0-9]{2}$'
+        if re.match(float_regex, value):
+            return True
     except ValueError:
         return False
 
@@ -138,6 +139,10 @@ def generate_text(lines, path_text_out, puntuaction, store):
                     if line[0].isdigit():
                         continue
 
+                if store is Migros:
+                    if line.startswith('CUM'):
+                        continue
+
                 if search_multiple(line, list(puntuaction)):
                     line = replace_multiple(line, list(puntuaction), '')
 
@@ -159,9 +164,16 @@ def generate_csv(path_csv_out, path_text_out, store):
     """
     product = []
     price = []
+    verify = False
 
     with open(path_text_out, "r") as text_file:
         for line in text_file:
+            if verify:
+                price.append(line.split()[-2])
+
+                verify = False
+                continue
+
             if store is Migros:
                 if line[0].isdigit():
                     price[-1] = line.split()[-2]
@@ -175,16 +187,25 @@ def generate_csv(path_csv_out, path_text_out, store):
                     continue
 
             p = re.split(r'(\d+)', line)[0]
+
+            if p == 'MBud Guanti domest.':
+                print()
+
             if store is Lidl:
                 if len(p) < 3:
                     continue
 
             product.append(p)
             cost = replace_multiple(line, [p, '\n'], '')
+
+            if cost == "":
+                verify = True
+                continue
+
             if isfloat(cost.split()[0]):
                 price.append(cost.split()[0])
             else:
-                price.append(cost.split()[1])
+                price.append(cost.split()[-2])
 
     # Get the list of tuples from two lists and merge them by using zip().
     list_of_tuples = list(zip(product, price))
@@ -264,6 +285,7 @@ def main(argv):
         print('Generated ' + path_csv_out)
     except:
         print('Retake the photo ' + inputfile)
+        raise
 
     subprocess.call(['open', path_csv_out])
 
