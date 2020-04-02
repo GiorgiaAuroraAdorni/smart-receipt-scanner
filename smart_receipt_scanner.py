@@ -190,6 +190,7 @@ def run(im, path_text_out, path_csv_out, store):
     # The original image should be taken with scanbot without flash, shadows and with neutral background
     im = binarize_image(im, store)
 
+    # It is possible to change the language of the receipt. If any language is specified, english is used as default.
     receipt_text = image_to_string(im, lang='ita')
     lines = receipt_text.split('\n')
 
