@@ -23,6 +23,7 @@ class Migros():
 
 def check_dir(directory):
     """
+    Check if the path is a directory, if not create it.
     :param directory: path to the directory
     """
     os.makedirs(directory, exist_ok=True)
@@ -30,9 +31,9 @@ def check_dir(directory):
 
 def isfloat(value):
     """
-
-    :param value:
-    :return:
+    Check if a string value is a float and return a boolean.
+    :param value: can be a number or a string
+    :return: True if the parameter is a float, False otherwise
     """
     try:
         float(value)
@@ -41,26 +42,37 @@ def isfloat(value):
         return False
 
 
-def replaceMultiple(mainString, toBeReplaces, newString):
-    """ Replace a set of multiple sub strings with a new string in main string. """
+def replace_multiple(main_string, to_be_replaced, new_string):
+    """
+    Replace a set of multiple sub strings with a new string in main string.
+    :param main_string: original string
+    :param to_be_replaced: list of character to replace
+    :param new_string: the character / string with which to replace the old ones
+    :return: the original string without the character occurrences
+    """
 
     # Iterate over the strings to be replaced
-    for elem in toBeReplaces:
+    for elem in to_be_replaced:
         # Check if string is in the main string
-        if elem in mainString:
+        if elem in main_string:
             # Replace the string
-            mainString = mainString.replace(elem, newString)
+            main_string = main_string.replace(elem, new_string)
 
-    return mainString
+    return main_string
 
 
-def searchMultiple(mainString, toSearch):
-    """ Replace a set of multiple sub strings with a new string in main string. """
+def search_multiple(main_string, to_search):
+    """
+    Replace a set of multiple sub strings with a new string in main string.
+    :param main_string: original string
+    :param to_search: list of character to search
+    :return: a boolean value, True if the character is found, False otherwise
+    """
 
     # Iterate over the strings to be replaced
-    for elem in toSearch:
+    for elem in to_search:
         # Check if string is in the main string
-        if elem in mainString:
+        if elem in main_string:
             # Replace the string
             return True
 
@@ -69,6 +81,9 @@ def searchMultiple(mainString, toSearch):
 
 def binarize_image(im, store):
     """
+    :param im: image
+    :param store: store to which the receipt refers
+    :return: image preprocessed
     """
     if store == Lidl:
         for i in range(im.size[0]):
@@ -81,18 +96,20 @@ def binarize_image(im, store):
     return im
 
 
-def generate_text(b, begin, end, f, lines, path_text_out, puntuaction, start, store):
+def generate_text(lines, path_text_out, puntuaction, store):
     """
+    Generate a text file containing the receipt data
+    :param lines: receipt lines
+    :param path_text_out: path to the output text file
+    :param puntuaction: stop symbols to remove
+    :param store: store to which the receipt refers
 
-    :param b:
-    :param begin:
-    :param end:
-    :param f:
-    :param lines:
-    :param path_text_out:
-    :param puntuaction:
-    :param start:
     """
+    b = re.compile(store.begin)
+    f = re.compile(store.finish)
+    start = False
+    end = False
+
     with open(path_text_out, "w") as text_file:
         for line in lines:
             if not line.strip():
@@ -114,15 +131,15 @@ def generate_text(b, begin, end, f, lines, path_text_out, puntuaction, start, st
                     break
 
             if start:
-                if line.startswith(begin):
+                if line.startswith(store.begin):
                     continue
 
                 if store is Lidl:
                     if line[0].isdigit():
                         continue
 
-                if searchMultiple(line, list(puntuaction)):
-                    line = replaceMultiple(line, list(puntuaction), '')
+                if search_multiple(line, list(puntuaction)):
+                    line = replace_multiple(line, list(puntuaction), '')
 
                 text_file.writelines(line)
                 text_file.writelines('\n')
@@ -135,9 +152,10 @@ def generate_text(b, begin, end, f, lines, path_text_out, puntuaction, start, st
 
 def generate_csv(path_csv_out, path_text_out, store):
     """
-
-    :param path_csv_out:
-    :param path_text_out:
+    Generate the final csv file containing a list of products and prices
+    :param path_csv_out: path to the output csv file
+    :param path_text_out: path to the output text file
+    :param store: store to which the receipt refers
     """
     product = []
     price = []
@@ -151,7 +169,7 @@ def generate_csv(path_csv_out, path_text_out, store):
 
                 if line.startswith('AZIONE'):
                     p = re.split(r'(\d+)', line)[0]
-                    discount = float(replaceMultiple(line, [p, '\n'], '').split()[0])
+                    discount = float(replace_multiple(line, [p, '\n'], '').split()[0])
                     total = round(float(price[-1].split()[0]), 2)
                     price[-1] = str(total - discount)
                     continue
@@ -162,29 +180,27 @@ def generate_csv(path_csv_out, path_text_out, store):
                     continue
 
             product.append(p)
-            cost = replaceMultiple(line, [p, '\n'], '')
+            cost = replace_multiple(line, [p, '\n'], '')
             if isfloat(cost.split()[0]):
                 price.append(cost.split()[0])
             else:
                 price.append(cost.split()[1])
-    # get the list of tuples from two lists.
-    # and merge them by using zip().
+
+    # Get the list of tuples from two lists and merge them by using zip().
     list_of_tuples = list(zip(product, price))
 
-    # Converting lists of tuples into
-    # pandas Dataframe.
+    # Converting lists of tuples into pandas Dataframe.
     df = pd.DataFrame(list_of_tuples, columns=['Product', 'Price'])
-
-    # Print data.
     df.to_csv(path_csv_out)
 
 
 def run(im, path_text_out, path_csv_out, store):
     """
+    :param im: image
+    :param path_text_out: path to the output text file
+    :param path_csv_out: path to the output csv file
+    :param store: store to which the receipt refers
 
-    :param path_to_image:
-    :param path_text_out:
-    :param path_csv_out:
     """
 
     # The original image should be taken with scanbot without flash, shadows and with neutral background
@@ -194,19 +210,17 @@ def run(im, path_text_out, path_csv_out, store):
     receipt_text = image_to_string(im, lang='ita')
     lines = receipt_text.split('\n')
 
-    b = re.compile(store.begin)
-    f = re.compile(store.finish)
-    start = False
-    end = False
+    puntuaction = replace_multiple(string.punctuation, ['.', ','], '')
 
-    puntuaction = replaceMultiple(string.punctuation, ['.', ','], '')
-
-    generate_text(b, store.begin, end, f, lines, path_text_out, puntuaction, start, store)
+    generate_text(lines, path_text_out, puntuaction, store)
 
     generate_csv(path_csv_out, path_text_out, store)
 
 
 def main(argv):
+    """
+    :param argv: command line argument
+    """
     inputfile = ''
 
     try:
@@ -214,6 +228,7 @@ def main(argv):
     except getopt.GetoptError:
         print('smart_receipt_scanner.py -i <inputfile>')
         sys.exit(2)
+
     for opt, arg in opts:
         if opt == '-h':
             print('smart_receipt_scanner.py -i <inputfile>')
@@ -221,7 +236,7 @@ def main(argv):
         elif opt in ("-i", "--ifile"):
             inputfile = arg
 
-    # Open the input image and detect to which store the receipt refer to.
+    # Open the input image and detect to which store the receipt refers to.
     # WIP: actually, only Migros and Lidl are detected.
     im = Image.open(inputfile).convert('L')
     receipt_text = image_to_string(im, lang='ita')
@@ -241,8 +256,8 @@ def main(argv):
     extension = ('.jpg', '.JPG', '.png', '.PNG')
     image_name = Path(inputfile).name
 
-    path_text_out = os.path.join(txt_out_dir, replaceMultiple(image_name, extension, '.txt'))
-    path_csv_out = os.path.join(csv_out_dir, replaceMultiple(image_name, extension, '.csv'))
+    path_text_out = os.path.join(txt_out_dir, replace_multiple(image_name, extension, '.txt'))
+    path_csv_out = os.path.join(csv_out_dir, replace_multiple(image_name, extension, '.csv'))
 
     try:
         run(im, path_text_out, path_csv_out, store)
