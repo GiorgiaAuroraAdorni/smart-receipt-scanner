@@ -1,19 +1,22 @@
-from PIL import Image
-from pytesseract import image_to_string
-import pandas as pd
+import getopt
+import os
 import re
 import string
-from os import listdir
-from os.path import isfile, join
-import os
+import subprocess
+import sys
+from pathlib import Path
+
+import pandas as pd
+from PIL import Image
+from pytesseract import image_to_string
 
 
-class Lidl(enumerate):
+class Lidl():
     begin = 'CHF'
     finish = 'Totale'
 
 
-class Migros(enumerate):
+class Migros():
     begin = 'CHF'
     finish = 'TOTALE'
 
@@ -26,16 +29,16 @@ def check_dir(directory):
 
 
 def isfloat(value):
-  """
+    """
 
-  :param value:
-  :return:
-  """
-  try:
-    float(value)
-    return True
-  except ValueError:
-    return False
+    :param value:
+    :return:
+    """
+    try:
+        float(value)
+        return True
+    except ValueError:
+        return False
 
 
 def replaceMultiple(mainString, toBeReplaces, newString):
@@ -64,11 +67,9 @@ def searchMultiple(mainString, toSearch):
     return False
 
 
-def binarize_image(path_to_image, store):
+def binarize_image(im, store):
     """
     """
-    im = Image.open(path_to_image).convert('L')
-
     if store == Lidl:
         for i in range(im.size[0]):
             for j in range(im.size[1]):
@@ -178,7 +179,7 @@ def generate_csv(path_csv_out, path_text_out, store):
     df.to_csv(path_csv_out)
 
 
-def main(path_to_image, path_text_out, path_csv_out, store):
+def run(im, path_text_out, path_csv_out, store):
     """
 
     :param path_to_image:
@@ -187,7 +188,7 @@ def main(path_to_image, path_text_out, path_csv_out, store):
     """
 
     # The original image should be taken with scanbot without flash, shadows and with neutral background
-    im = binarize_image(path_to_image, store)
+    im = binarize_image(im, store)
 
     receipt_text = image_to_string(im, lang='ita')
     lines = receipt_text.split('\n')
@@ -204,32 +205,52 @@ def main(path_to_image, path_text_out, path_csv_out, store):
     generate_csv(path_csv_out, path_text_out, store)
 
 
-if __name__ == '__main__':
+def main(argv):
+    inputfile = ''
 
-    images_dir = '../images/'
+    try:
+        opts, args = getopt.getopt(argv, "hi:o:", ["ifile=", "ofile="])
+    except getopt.GetoptError:
+        print('smart_receipt_scanner.py -i <inputfile>')
+        sys.exit(2)
+    for opt, arg in opts:
+        if opt == '-h':
+            print('smart_receipt_scanner.py -i <inputfile>')
+            sys.exit()
+        elif opt in ("-i", "--ifile"):
+            inputfile = arg
+
+    # Open the input image and detect to which store the receipt refer to.
+    # WIP: actually, only Migros and Lidl are detected.
+    im = Image.open(inputfile).convert('L')
+    receipt_text = image_to_string(im, lang='ita')
+
+    if 'MIGROS' in receipt_text:
+        store = Migros
+    else:
+        store = Lidl
+
+    # Create the directories for the output file, if do not exist.
     csv_out_dir = 'out/csv/'
     txt_out_dir = 'out/txt/'
+
     check_dir(csv_out_dir)
     check_dir(txt_out_dir)
 
-    images = [f for f in listdir(images_dir) if isfile(join(images_dir, f))]
     extension = ('.jpg', '.JPG', '.png', '.PNG')
-    images = [f for f in images if f.endswith(extension)]
+    image_name = Path(inputfile).name
 
-    for im in images:
-        path_to_image = images_dir + im
-        path_text_out = os.path.join(txt_out_dir, replaceMultiple(im, extension, '.txt'))
-        path_csv_out = os.path.join(csv_out_dir, replaceMultiple(im, extension, '.csv'))
+    path_text_out = os.path.join(txt_out_dir, replaceMultiple(image_name, extension, '.txt'))
+    path_csv_out = os.path.join(csv_out_dir, replaceMultiple(image_name, extension, '.csv'))
 
-        if re.search('lidl', path_to_image):
-            try:
-                main(path_to_image, path_text_out, path_csv_out, Lidl)
-                print('Generated ' + path_csv_out)
-            except:
-                print('Retake the photo ' + path_to_image)
-        elif re.search('migros', path_to_image):
-            try:
-                main(path_to_image, path_text_out, path_csv_out, Migros)
-                print('Generated ' + path_csv_out)
-            except:
-                print('Retake the photo ' + path_to_image)
+    try:
+        run(im, path_text_out, path_csv_out, store)
+        print('Generated ' + path_csv_out)
+    except:
+        print('Retake the photo ' + inputfile)
+
+    subprocess.call(['open', path_csv_out])
+
+
+if __name__ == "__main__":
+    main(sys.argv[1:])
