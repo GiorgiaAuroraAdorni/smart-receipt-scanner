@@ -188,9 +188,6 @@ def generate_csv(path_csv_out, path_text_out, store):
 
             p = re.split(r'(\d+)', line)[0]
 
-            if p == 'MBud Guanti domest.':
-                print()
-
             if store is Lidl:
                 if len(p) < 3:
                     continue
@@ -205,7 +202,10 @@ def generate_csv(path_csv_out, path_text_out, store):
             if isfloat(cost.split()[0]):
                 price.append(cost.split()[0])
             else:
-                price.append(cost.split()[-2])
+                if store is Migros:
+                    price.append(cost.split()[-2])
+                else:
+                    price.append(cost.split()[-1])
 
     # Get the list of tuples from two lists and merge them by using zip().
     list_of_tuples = list(zip(product, price))
