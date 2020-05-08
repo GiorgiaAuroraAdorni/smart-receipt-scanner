@@ -8,7 +8,7 @@ The script is able to work with images already cropped and of good quality, for 
 
 Now we support *Migros* and *Lidl* as grocery stores in Switzerland, Italy, Germany etc.
 
-The current version support many languages but uses Italian as default. In order to change the receipt language, modify the parameter `lan` in the current line: `receipt_text = image_to_string(im, lang='ita')`.
+The current version supports many languages but uses Italian as default. In order to change the receipt language, modify the parameter `lan` in the current line: `receipt_text = image_to_string(im, lang='ita')`.
 
 ### Prerequisites
 
