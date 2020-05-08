@@ -1,9 +1,8 @@
-import getopt
+import argparse
 import os
 import re
 import string
 import subprocess
-import sys
 from pathlib import Path
 
 import pandas as pd
@@ -19,6 +18,21 @@ class Lidl():
 class Migros():
     begin = 'CHF'
     finish = 'TOTALE'
+
+
+def parse_args():
+    parser = argparse.ArgumentParser(description='Smart Receipt Scanner')
+
+    parser.add_argument('--image', default=None, type=str,
+                        help='path to the image of the receipt to scan (default: None)')
+    parser.add_argument('--txt', default=None, type=str,
+                        help='path to the txt containing the receipt (default: None)')
+    parser.add_argument('--store', default='Migros', choices=['Migros', 'Lidl'],
+                        help='choose a store to which the receipt refers between Migros and Lidl (default: Migros)')
+
+    args = parser.parse_args()
+
+    return args
 
 
 def check_dir(directory):
@@ -162,28 +176,29 @@ def generate_csv(path_csv_out, path_text_out, store):
     :param path_text_out: path to the output text file
     :param store: store to which the receipt refers
     """
-    product = []
-    price = []
+    products = []
+    prices = []
+
     verify = False
 
     with open(path_text_out, "r") as text_file:
         for line in text_file:
             if verify:
-                price.append(line.split()[-2])
+                prices.append(line.split()[-2])
 
                 verify = False
                 continue
 
             if store is Migros:
                 if line[0].isdigit():
-                    price[-1] = line.split()[-2]
+                    prices[-1] = line.split()[-2]
                     continue
 
                 if line.startswith('AZIONE'):
                     p = re.split(r'(\d+)', line)[0]
                     discount = float(replace_multiple(line, [p, '\n'], '').split()[0])
-                    total = round(float(price[-1].split()[0]), 2)
-                    price[-1] = str(total - discount)
+                    total = round(float(prices[-1].split()[0]), 2)
+                    prices[-1] = str(round(float(total - discount), 2))
                     continue
 
             p = re.split(r'(\d+)', line)[0]
@@ -192,80 +207,104 @@ def generate_csv(path_csv_out, path_text_out, store):
                 if len(p) < 3:
                     continue
 
-            product.append(p)
+            products.append(p)
             cost = replace_multiple(line, [p, '\n'], '')
 
             if cost == "":
                 verify = True
                 continue
 
-            if isfloat(cost.split()[0]):
-                price.append(cost.split()[0])
+            curr_costs = cost.split()
+            curr_price = []
+            for c in curr_costs:
+                if isfloat(c):
+                    curr_price.append(c)
+
+            if len(curr_price) == 0:
+                raise ValueError('No price')
+            elif len(curr_price) > 1:
+                raise ValueError('Tou much prices')
             else:
-                if store is Migros:
-                    price.append(cost.split()[-2])
-                else:
-                    price.append(cost.split()[-1])
+                prices.append(curr_price[0])
 
     # Get the list of tuples from two lists and merge them by using zip().
-    list_of_tuples = list(zip(product, price))
+    list_of_tuples = list(zip(products, prices))
 
     # Converting lists of tuples into pandas Dataframe.
     df = pd.DataFrame(list_of_tuples, columns=['Product', 'Price'])
     df.to_csv(path_csv_out)
 
+    print('Generated ' + path_csv_out)
 
-def run(im, path_text_out, path_csv_out, store):
+
+def run(path_text_out, path_csv_out, store, im=None):
     """
-    :param im: image
+
     :param path_text_out: path to the output text file
     :param path_csv_out: path to the output csv file
     :param store: store to which the receipt refers
+    :param im: image
 
     """
+    if im is not None:
+        # The original image should be taken with scanbot without flash, shadows and with neutral background
+        im = binarize_image(im, store)
 
-    # The original image should be taken with scanbot without flash, shadows and with neutral background
-    im = binarize_image(im, store)
+        # It is possible to change the language of the receipt. If any language is specified, english is used as default.
+        receipt_text = image_to_string(im, lang='ita')
+        lines = receipt_text.split('\n')
 
-    # It is possible to change the language of the receipt. If any language is specified, english is used as default.
-    receipt_text = image_to_string(im, lang='ita')
-    lines = receipt_text.split('\n')
+        puntuaction = replace_multiple(string.punctuation, ['.', ','], '')
 
-    puntuaction = replace_multiple(string.punctuation, ['.', ','], '')
-
-    generate_text(lines, path_text_out, puntuaction, store)
+        generate_text(lines, path_text_out, puntuaction, store)
 
     generate_csv(path_csv_out, path_text_out, store)
 
 
-def main(argv):
+def main(args, csv_out_dir, txt_out_dir):
     """
-    :param argv: command line argument
+
+    :param args: command line arguments
+    :param csv_out_dir:
+    :param txt_out_dir:
     """
-    inputfile = ''
 
-    try:
-        opts, args = getopt.getopt(argv, "hi:o:", ["ifile=", "ofile="])
-    except getopt.GetoptError:
-        print('smart_receipt_scanner.py -i <inputfile>')
-        sys.exit(2)
-
-    for opt, arg in opts:
-        if opt == '-h':
-            print('smart_receipt_scanner.py -i <inputfile>')
-            sys.exit()
-        elif opt in ("-i", "--ifile"):
-            inputfile = arg
-
-    # Open the input image and detect to which store the receipt refers to.
-    # WIP: actually, only Migros and Lidl are detected.
-    im = Image.open(inputfile).convert('L')
-    receipt_text = image_to_string(im, lang='ita')
-
-    if 'MIGROS' in receipt_text:
+    if args.store == 'Migros':
         store = Migros
-    else:
+    elif args.store == 'Lidl':
         store = Lidl
+    else:
+        raise ValueError('Invalid or missing store')
+
+    if args.image is not None:
+        # Open the input image and detect to which store the receipt refers to.
+        # WIP: actually, only Migros and Lidl are detected.
+        im = Image.open(args.image).convert('L')
+
+        extension = ('.jpg', '.JPG', '.png', '.PNG')
+        receipt_name = Path(args.image).name
+
+        path_text_out = os.path.join(txt_out_dir, replace_multiple(receipt_name, extension, '.txt'))
+        path_csv_out = os.path.join(csv_out_dir, replace_multiple(receipt_name, extension, '.csv'))
+
+        run(path_text_out, path_csv_out, store, im)
+
+    elif args.txt is not None:
+        extension = '.txt'
+        receipt_name = Path(args.txt).name
+
+        path_text_out = args.txt
+        path_csv_out = os.path.join(csv_out_dir, replace_multiple(receipt_name, extension, '.csv'))
+
+        run(path_text_out, path_csv_out, store)
+    else:
+        raise ValueError('Invalid or missing input')
+
+    subprocess.call(['open', path_csv_out])
+
+
+if __name__ == "__main__":
+    args = parse_args()
 
     # Create the directories for the output file, if do not exist.
     csv_out_dir = 'out/csv/'
@@ -274,21 +313,4 @@ def main(argv):
     check_dir(csv_out_dir)
     check_dir(txt_out_dir)
 
-    extension = ('.jpg', '.JPG', '.png', '.PNG')
-    image_name = Path(inputfile).name
-
-    path_text_out = os.path.join(txt_out_dir, replace_multiple(image_name, extension, '.txt'))
-    path_csv_out = os.path.join(csv_out_dir, replace_multiple(image_name, extension, '.csv'))
-
-    try:
-        run(im, path_text_out, path_csv_out, store)
-        print('Generated ' + path_csv_out)
-    except:
-        print('Retake the photo ' + inputfile)
-        raise
-
-    subprocess.call(['open', path_csv_out])
-
-
-if __name__ == "__main__":
-    main(sys.argv[1:])
+    main(args, csv_out_dir, txt_out_dir)
