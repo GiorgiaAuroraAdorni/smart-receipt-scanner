@@ -27,8 +27,8 @@ def parse_args():
                         help='path to the image of the receipt to scan (default: None)')
     parser.add_argument('--txt', default=None, type=str,
                         help='path to the txt containing the receipt (default: None)')
-    parser.add_argument('--store', default='Migros', choices=['Migros', 'Lidl'],
-                        help='choose a store to which the receipt refers between Migros and Lidl (default: Migros)')
+    parser.add_argument('--store', default='migros', choices=['migros', 'lidl'],
+                        help='choose a store to which the receipt refers between migros and lidl (default: migros)')
 
     args = parser.parse_args()
 
@@ -43,6 +43,20 @@ def check_dir(directory):
     os.makedirs(directory, exist_ok=True)
 
 
+def isprice(value):
+    """
+    Check if a string value is a price, that means a float with two decimals, and return a boolean.
+    :param value: can be a number or a string
+    :return: True if the parameter is a float, False otherwise
+    """
+    try:
+        float_regex = '^([0-9]+\\.)[0-9]{2}$'
+        if re.match(float_regex, value):
+            return True
+    except ValueError:
+        return False
+
+
 def isfloat(value):
     """
     Check if a string value is a float and return a boolean.
@@ -50,7 +64,7 @@ def isfloat(value):
     :return: True if the parameter is a float, False otherwise
     """
     try:
-        float_regex = '^([0-9]+\\.)[0-9]{2}$'
+        float_regex = '^([0-9]+\\.)[0-9]+$'
         if re.match(float_regex, value):
             return True
     except ValueError:
@@ -183,8 +197,24 @@ def generate_csv(path_csv_out, path_text_out, store):
 
     with open(path_text_out, "r") as text_file:
         for line in text_file:
+            stop_pattern = ' ([0-9]|A)\n'
+            if re.search(stop_pattern, line):
+                stop = re.search(stop_pattern, line)[0]
+                line = line.rsplit(stop, 1)[0]
+
             if verify:
-                prices.append(line.split()[-2])
+                costs = line.split()
+
+                # Price for kilos
+                if isfloat(costs[0]):
+                    prices.append(costs[-1])
+
+                # Multiple products
+                else:
+                    moltiplicator = costs[0]
+                    price = costs[-1]
+                    cost = float(moltiplicator) * float(price)
+                    prices.append('{:.2f}'.format(cost))
 
                 verify = False
                 continue
@@ -198,13 +228,19 @@ def generate_csv(path_csv_out, path_text_out, store):
                     p = re.split(r'(\d+)', line)[0]
                     discount = float(replace_multiple(line, [p, '\n'], '').split()[0])
                     total = round(float(prices[-1].split()[0]), 2)
-                    prices[-1] = str(round(float(total - discount), 2))
+                    prices[-1] = '{:.2f}'.format(float(total - discount))
                     continue
 
             p = re.split(r'(\d+)', line)[0]
 
             if store is Lidl:
                 if len(p) < 3:
+                    continue
+                if line.startswith('Sconto'):
+                    p = re.split(r'(\d+)', line)[0]
+                    discount = float(replace_multiple(line, [p, '\n'], '').split()[-1])
+                    total = round(float(prices[-1].split()[0]), 2)
+                    prices[-1] = '{:.2f}'.format(float(total - discount))
                     continue
 
             products.append(p)
@@ -217,13 +253,17 @@ def generate_csv(path_csv_out, path_text_out, store):
             curr_costs = cost.split()
             curr_price = []
             for c in curr_costs:
-                if isfloat(c):
+                if isprice(c):
                     curr_price.append(c)
 
             if len(curr_price) == 0:
-                raise ValueError('No price')
+                if store == Migros:
+                    verify = True
+                    continue
+                else:
+                    prices.append(cost)
             elif len(curr_price) > 1:
-                raise ValueError('Tou much prices')
+                raise ValueError('Too much prices')
             else:
                 prices.append(curr_price[0])
 
@@ -269,9 +309,9 @@ def main(args, csv_out_dir, txt_out_dir):
     :param txt_out_dir:
     """
 
-    if args.store == 'Migros':
+    if args.store == 'migros':
         store = Migros
-    elif args.store == 'Lidl':
+    elif args.store == 'lidl':
         store = Lidl
     else:
         raise ValueError('Invalid or missing store')
@@ -290,11 +330,10 @@ def main(args, csv_out_dir, txt_out_dir):
         run(path_text_out, path_csv_out, store, im)
 
     elif args.txt is not None:
-        extension = '.txt'
-        receipt_name = Path(args.txt).name
+        receipt_name = Path(args.txt).stem
 
         path_text_out = args.txt
-        path_csv_out = os.path.join(csv_out_dir, replace_multiple(receipt_name, extension, '.csv'))
+        path_csv_out = os.path.join(csv_out_dir, '%s.csv' % receipt_name)
 
         run(path_text_out, path_csv_out, store)
     else:
