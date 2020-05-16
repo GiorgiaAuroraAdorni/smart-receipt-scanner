@@ -17,7 +17,7 @@ class Lidl():
 
 class Migros():
     begin = 'CHF'
-    finish = 'TOTALE'
+    finish = '^TOTALE'
 
 
 def parse_args():
@@ -168,7 +168,7 @@ def generate_text(lines, path_text_out, puntuaction, store):
                         continue
 
                 if store is Migros:
-                    if line.startswith('CUM'):
+                    if line.startswith('^CUM[0-9]+x'):
                         continue
 
                 if search_multiple(line, list(puntuaction)):
