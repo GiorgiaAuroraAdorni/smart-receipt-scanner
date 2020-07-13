@@ -17,6 +17,7 @@ class Lidl():
 
 class Migros():
     begin = 'CHF'
+    begin2 = 'MMM Lugano'
     finish = '^TOTALE'
 
 
@@ -135,6 +136,8 @@ def generate_text(lines, path_text_out, puntuaction, store):
 
     """
     b = re.compile(store.begin)
+    if store is Migros:
+        b2 = re.compile(store.begin2)
     f = re.compile(store.finish)
     start = False
     end = False
@@ -145,7 +148,10 @@ def generate_text(lines, path_text_out, puntuaction, store):
                 continue
 
             while not start:
-                if re.search(b, line):
+                if store is Migros and re.search(b2, line):
+                    start = True
+                    break
+                elif re.search(b, line):
                     start = True
                     break
                 else:
@@ -168,7 +174,11 @@ def generate_text(lines, path_text_out, puntuaction, store):
                         continue
 
                 if store is Migros:
+                    if line.startswith(store.begin2):
+                        continue
                     if line.startswith('^CUM[0-9]+x'):
+                        continue
+                    if re.search('MIGROS', line):
                         continue
 
                 if search_multiple(line, list(puntuaction)):
