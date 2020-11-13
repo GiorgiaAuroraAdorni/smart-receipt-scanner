@@ -67,3 +67,57 @@ or
 $ python3 smart_receipt_scanner.py --txt <inputFile> [--store lidl]
 ```
 
+#### Example
+
+Loading the following image 
+
+![inputImage](input/inputImage.PNG)
+
+the output are:
+
+-  a txt file containing the list of items:
+
+  ```
+  San Benedetto minerale 0.45 1
+  Panini forno in pietra 0.90 1
+  Panini forno in pietra 0.90 1
+  AZI Mele Gala
+  0.446 x 3.60 1.60 1
+  AZIONE 0.35 1
+  zucchine
+  1.085 x 2.95 3.20 1
+  AZI Prugne
+  0.154 x 4.90 0.75 1
+  AZIONE 0.15 1
+  Tetley earl grey 50g 3.00 1
+  Tetley earl grey 50g 3.00 1
+  Uova aperto 4x63g 2.30 1
+  Uova aperto 4x63g 2.30 1
+  Uova aperto 4x63g 2.30 1
+  SUBTOTALE 15.60
+  CUMULUS BON 5. 5.00 9
+  CUMULUS BON 5. 5.00 9
+  TOTALE 5.60
+  ```
+
+- and a csv file with a similar format:
+
+  |        | **Product**            | **Price** |
+  | ------ | ---------------------- | --------- |
+  | **0**  | San Benedetto minerale | 0.45      |
+  | **1**  | Panini forno in pietra | 0.90      |
+  | **2**  | Panini forno in pietra | 0.90      |
+  | **3**  | AZI Mele Gala          | 1.25      |
+  | **4**  | zucchine               | 3.20      |
+  | **5**  | AZI Prugne             | 0.60      |
+  | **6**  | Tetley earl grey       | 3.00      |
+  | **7**  | Tetley earl grey       | 3.00      |
+  | **8**  | Uova aperto            | 2.30      |
+  | **9**  | Uova aperto            | 2.30      |
+  | **10** | Uova aperto            | 2.30      |
+  | **11** | SUBTOTALE              | 15.60     |
+  | **12** | CUMULUS BON            | -5.00     |
+  | **13** | CUMULUS BON            | -5.00     |
+  | **14** | TOTALE                 | 5.60      |
+  
+
