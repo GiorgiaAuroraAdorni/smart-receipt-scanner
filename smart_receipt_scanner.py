@@ -176,7 +176,9 @@ def generate_text(lines, path_text_out, puntuaction, store):
                 if store is Migros:
                     if line.startswith(store.begin2):
                         continue
-                    if line.startswith('^CUM[0-9]+x'):
+                    if re.search('^CUM[0-9]+x', line):
+                        continue
+                    if re.search('^CUM ', line):
                         continue
                     if re.search('MIGROS', line):
                         continue
@@ -234,7 +236,7 @@ def generate_csv(path_csv_out, path_text_out, store):
                     prices[-1] = line.split()[-2]
                     continue
 
-                if line.startswith('AZIONE'):
+                if re.search('^AZIONE', line):
                     p = re.split(r'(\d+)', line)[0]
                     discount = float(replace_multiple(line, [p, '\n'], '').split()[0])
                     total = round(float(prices[-1].split()[0]), 2)
@@ -256,6 +258,8 @@ def generate_csv(path_csv_out, path_text_out, store):
             products.append(p)
             cost = replace_multiple(line, [p, '\n'], '')
 
+
+
             if cost == "":
                 verify = True
                 continue
@@ -275,6 +279,8 @@ def generate_csv(path_csv_out, path_text_out, store):
             elif len(curr_price) > 1:
                 raise ValueError('Too much prices')
             else:
+                if re.search('^CUMULUS', p):
+                    curr_price[0] = '-' + curr_price[0]
                 prices.append(curr_price[0])
 
     # Get the list of tuples from two lists and merge them by using zip().
