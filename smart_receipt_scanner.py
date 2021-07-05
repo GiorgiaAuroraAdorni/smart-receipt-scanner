@@ -180,8 +180,25 @@ def generate_text(lines, path_text_out, puntuaction, store):
                         continue
                     if re.search('^CUM ', line):
                         continue
+                    if re.search('^CUMULUS', line):
+                        line = replace_multiple(line, list(puntuaction), '')
+                        p = re.split(r'(\d+)', line)[0]
+                        discount = float(replace_multiple(line, [p, '\n'], '').split()[0])
+                        line = 'SCONTO 0.00 1\nAZIONE ' + str(discount) + ' 1'
+
+                    if re.search('^Buono Supplementare', line):
+                        continue
                     if re.search('MIGROS', line):
                         continue
+                    if re.search('SUBTOTALE', line):
+                        continue
+                    if re.search('-', line):
+                        line = replace_multiple(line, list(puntuaction), '')
+                        p = re.split(r'(\d+)', line)[0]
+                        discount = float(replace_multiple(line, [p, '\n'], '').split()[0])
+                        print(line)
+                        line = 'AZIONE ' + str(discount) + ' 1'
+                        print(line)
 
                 if search_multiple(line, list(puntuaction)):
                     line = replace_multiple(line, list(puntuaction), '')
@@ -257,8 +274,6 @@ def generate_csv(path_csv_out, path_text_out, store):
 
             products.append(p)
             cost = replace_multiple(line, [p, '\n'], '')
-
-
 
             if cost == "":
                 verify = True
