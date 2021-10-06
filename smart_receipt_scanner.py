@@ -1,12 +1,11 @@
 import argparse
 import os
+import pandas as pd
 import re
 import string
 import subprocess
-from pathlib import Path
-
-import pandas as pd
 from PIL import Image
+from pathlib import Path
 from pytesseract import image_to_string
 
 
@@ -19,9 +18,25 @@ class Lidl_digital():
     begin = 'CHF'
     finish = 'Il Tuo Prezzo Lidl '
 
+
 class Migros_digital():
     begin = 'CHF'
     begin2 = 'MMM Lugano'
+    finish = '^TOTALE'
+
+
+class Esselunga():
+    begin = 'IVA'
+    finish = '^TOTALE'
+
+
+class Coop():
+    begin = 'CHF'
+    finish = '^TOTALE'
+
+
+class Carrefour():
+    begin = 'CHF'
     finish = '^TOTALE'
 
 
@@ -32,7 +47,7 @@ def parse_args():
                         help='path to the image of the receipt to scan (default: None)')
     parser.add_argument('--txt', default=None, type=str,
                         help='path to the txt containing the receipt (default: None)')
-    parser.add_argument('--store', default='migros', choices=['migros', 'lidl'],
+    parser.add_argument('--store', default='migros', choices=['migros', 'lidl', 'esselunga', 'coop', 'esselunga'],
                         help='choose a store to which the receipt refers between migros and lidl (default: migros)')
     parser.add_argument('--digital', type=bool, default=False,
                         help='specify if the receipt is digital')
@@ -121,7 +136,7 @@ def binarize_image(im, store):
     :param store: store to which the receipt refers
     :return: image preprocessed
     """
-    if store == Lidl:
+    if store == Lidl or store == Esselunga:
         for i in range(im.size[0]):
             for j in range(im.size[1]):
                 if im.getpixel((i, j)) > 170:
@@ -149,6 +164,8 @@ def generate_text(lines, path_text_out, punctuation, store):
 
     with open(path_text_out, "w") as text_file:
         for line in lines:
+            line = line.replace(',', '.')
+
             if not line.strip():
                 continue
 
@@ -173,6 +190,12 @@ def generate_text(lines, path_text_out, punctuation, store):
             if start:
                 if line.startswith(store.begin):
                     continue
+
+                if store is Esselunga:
+                    if re.search(b, line):
+                        continue
+                    if re.search('PUNTI FRAGOLA', line):
+                        continue
 
                 if store is Lidl:
                     if line[0].isdigit():
@@ -253,6 +276,14 @@ def generate_csv(path_csv_out, path_text_out, store):
                 verify = False
                 continue
 
+            if store is Esselunga:
+                if re.search('SCONTO', line):
+                    p = re.split(r'(\d+)', line)[0]
+                    discount = float(replace_multiple(line, [p, '\n'], '').split()[1].split('S')[0])
+                    total = round(float(prices[-1].split()[0]), 2)
+                    prices[-1] = '{:.2f}'.format(float(total - discount))
+                    continue
+
             if store is Migros_digital:
                 if line[0].isdigit():
                     prices[-1] = line.split()[-2]
@@ -299,9 +330,15 @@ def generate_csv(path_csv_out, path_text_out, store):
                     verify = True
                     continue
                 else:
-                    prices.append(cost)
+                    if store == Esselunga:
+                        prices.append(curr_costs[-1])
+                    else:
+                        prices.append(cost)
             elif len(curr_price) > 1:
-                raise ValueError('Too much prices')
+                if len(set(curr_price)) == 1:  # curr_price has all identical elements.
+                    prices.append(curr_price[0])
+                else:
+                    raise ValueError('Too much prices: \n product: ' + p + '; detected prices: ' + cost)
             else:
                 if re.search('^CUMULUS', p) or (re.search('Arrotondamento', p) and store is Lidl_digital):
                     curr_price[0] = '-' + curr_price[0]
@@ -336,6 +373,9 @@ def run(path_text_out, path_csv_out, store, im=None):
 
         punctuation = replace_multiple(string.punctuation, ['.', ','], '')
 
+        if store == Esselunga:
+            punctuation = punctuation + '‹›°«“*‘î)' + string.ascii_lowercase
+
         generate_text(lines, path_text_out, punctuation, store)
 
     generate_csv(path_csv_out, path_text_out, store)
@@ -357,6 +397,8 @@ def main(args, csv_out_dir, txt_out_dir):
             store = Lidl_digital
         else:
             store = Lidl
+    elif args.store == 'esselunga':
+        store = Esselunga
     else:
         raise ValueError('Invalid or missing store')
 
