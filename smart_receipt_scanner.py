@@ -15,7 +15,11 @@ class Lidl():
     finish = 'Totale'
 
 
-class Migros():
+class Lidl_digital():
+    begin = 'CHF'
+    finish = 'Il Tuo Prezzo Lidl '
+
+class Migros_digital():
     begin = 'CHF'
     begin2 = 'MMM Lugano'
     finish = '^TOTALE'
@@ -30,6 +34,8 @@ def parse_args():
                         help='path to the txt containing the receipt (default: None)')
     parser.add_argument('--store', default='migros', choices=['migros', 'lidl'],
                         help='choose a store to which the receipt refers between migros and lidl (default: migros)')
+    parser.add_argument('--digital', type=bool, default=False,
+                        help='specify if the receipt is digital')
 
     args = parser.parse_args()
 
@@ -122,7 +128,6 @@ def binarize_image(im, store):
                     im.putpixel((i, j), 255)
                 else:
                     im.putpixel((i, j), 0)
-
     return im
 
 
@@ -136,7 +141,7 @@ def generate_text(lines, path_text_out, puntuaction, store):
 
     """
     b = re.compile(store.begin)
-    if store is Migros:
+    if store is Migros_digital:
         b2 = re.compile(store.begin2)
     f = re.compile(store.finish)
     start = False
@@ -148,7 +153,7 @@ def generate_text(lines, path_text_out, puntuaction, store):
                 continue
 
             while not start:
-                if store is Migros and re.search(b2, line):
+                if store is Migros_digital and re.search(b2, line):
                     start = True
                     break
                 elif re.search(b, line):
@@ -173,7 +178,7 @@ def generate_text(lines, path_text_out, puntuaction, store):
                     if line[0].isdigit():
                         continue
 
-                if store is Migros:
+                if store is Migros_digital:
                     if line.startswith(store.begin2):
                         continue
                     if re.search('^CUM[0-9]+x', line):
@@ -248,7 +253,7 @@ def generate_csv(path_csv_out, path_text_out, store):
                 verify = False
                 continue
 
-            if store is Migros:
+            if store is Migros_digital:
                 if line[0].isdigit():
                     prices[-1] = line.split()[-2]
                     continue
@@ -258,6 +263,10 @@ def generate_csv(path_csv_out, path_text_out, store):
                     discount = float(replace_multiple(line, [p, '\n'], '').split()[0])
                     total = round(float(prices[-1].split()[0]), 2)
                     prices[-1] = '{:.2f}'.format(float(total - discount))
+                    continue
+
+            if store is Lidl_digital:
+                if line[0].isdigit():
                     continue
 
             p = re.split(r'(\d+)', line)[0]
@@ -286,7 +295,7 @@ def generate_csv(path_csv_out, path_text_out, store):
                     curr_price.append(c)
 
             if len(curr_price) == 0:
-                if store == Migros:
+                if store == Migros_digital:
                     verify = True
                     continue
                 else:
@@ -294,7 +303,7 @@ def generate_csv(path_csv_out, path_text_out, store):
             elif len(curr_price) > 1:
                 raise ValueError('Too much prices')
             else:
-                if re.search('^CUMULUS', p):
+                if re.search('^CUMULUS', p) or (re.search('Arrotondamento', p) and store is Lidl_digital):
                     curr_price[0] = '-' + curr_price[0]
                 prices.append(curr_price[0])
 
@@ -341,9 +350,13 @@ def main(args, csv_out_dir, txt_out_dir):
     """
 
     if args.store == 'migros':
-        store = Migros
+        store = Migros_digital
     elif args.store == 'lidl':
-        store = Lidl
+        print(args.digital)
+        if args.digital:
+            store = Lidl_digital
+        else:
+            store = Lidl
     else:
         raise ValueError('Invalid or missing store')
 
