@@ -131,12 +131,12 @@ def binarize_image(im, store):
     return im
 
 
-def generate_text(lines, path_text_out, puntuaction, store):
+def generate_text(lines, path_text_out, punctuation, store):
     """
     Generate a text file containing the receipt data
     :param lines: receipt lines
     :param path_text_out: path to the output text file
-    :param puntuaction: stop symbols to remove
+    :param punctuation: stop symbols to remove
     :param store: store to which the receipt refers
 
     """
@@ -186,7 +186,7 @@ def generate_text(lines, path_text_out, puntuaction, store):
                     if re.search('^CUM ', line):
                         continue
                     if re.search('^CUMULUS', line):
-                        line = replace_multiple(line, list(puntuaction), '')
+                        line = replace_multiple(line, list(punctuation), '')
                         p = re.split(r'(\d+)', line)[0]
                         discount = float(replace_multiple(line, [p, '\n'], '').split()[0])
                         line = 'SCONTO 0.00 1\nAZIONE ' + str(discount) + ' 1'
@@ -198,15 +198,15 @@ def generate_text(lines, path_text_out, puntuaction, store):
                     if re.search('SUBTOTALE', line):
                         continue
                     if re.search('-', line):
-                        line = replace_multiple(line, list(puntuaction), '')
+                        line = replace_multiple(line, list(punctuation), '')
                         p = re.split(r'(\d+)', line)[0]
                         discount = float(replace_multiple(line, [p, '\n'], '').split()[0])
                         print(line)
                         line = 'AZIONE ' + str(discount) + ' 1'
                         print(line)
 
-                if search_multiple(line, list(puntuaction)):
-                    line = replace_multiple(line, list(puntuaction), '')
+                if search_multiple(line, list(punctuation)):
+                    line = replace_multiple(line, list(punctuation), '')
 
                 text_file.writelines(line)
                 text_file.writelines('\n')
@@ -334,9 +334,9 @@ def run(path_text_out, path_csv_out, store, im=None):
         receipt_text = image_to_string(im, lang='ita')
         lines = receipt_text.split('\n')
 
-        puntuaction = replace_multiple(string.punctuation, ['.', ','], '')
+        punctuation = replace_multiple(string.punctuation, ['.', ','], '')
 
-        generate_text(lines, path_text_out, puntuaction, store)
+        generate_text(lines, path_text_out, punctuation, store)
 
     generate_csv(path_csv_out, path_text_out, store)
 
