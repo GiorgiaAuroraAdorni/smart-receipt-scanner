@@ -44,7 +44,7 @@ $ python3 smart_receipt_scanner.py -h
 ```
 
 ```bash
-> usage: smart_receipt_scanner.py [-h][--image IMAGE] [--txt TXT][--store {migros,lidl}]
+> usage: smart_receipt_scanner.py [-h][--image IMAGE] [--txt TXT][--store {migros,lidl,esselunga,manor}][--digital DIGITAL]
 
 	Smart Receipt Scanner
 
@@ -52,7 +52,8 @@ $ python3 smart_receipt_scanner.py -h
   		-h, --help            show this help message and exit
 		--image IMAGE         path to the image of the receipt to scan (default: None)
   		--txt TXT             path to the txt containing the receipt (default: None)
-  		--store {migros,lidl} choose a store to which the receipt refers between migros 							  and lidl (default: migros)
+  		--store {migros,lidl,esselunga,manor} choose a store to which the receipt refers (default: migros)
+  		--digital DIGITAL     specify if the receipt is digital
 ```
 
 To execute the script:
