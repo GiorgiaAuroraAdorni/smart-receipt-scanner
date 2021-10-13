@@ -8,7 +8,6 @@ from PIL import Image
 from pathlib import Path
 from pytesseract import image_to_string
 
-
 class Lidl():
     begin = 'CHF'
     finish = 'Totale'
@@ -39,6 +38,10 @@ class Carrefour():
     begin = 'CHF'
     finish = '^TOTALE'
 
+class Manor_digital():
+    begin = r'\d{2}/\d{2}/\d{2}'
+    finish = '\f'
+
 
 def parse_args():
     parser = argparse.ArgumentParser(description='Smart Receipt Scanner')
@@ -47,8 +50,8 @@ def parse_args():
                         help='path to the image of the receipt to scan (default: None)')
     parser.add_argument('--txt', default=None, type=str,
                         help='path to the txt containing the receipt (default: None)')
-    parser.add_argument('--store', default='migros', choices=['migros', 'lidl', 'esselunga', 'coop', 'esselunga'],
-                        help='choose a store to which the receipt refers between migros and lidl (default: migros)')
+    parser.add_argument('--store', default='migros', choices=['migros', 'lidl', 'esselunga', 'manor', 'coop', 'carrefour'],
+                        help='choose a store to which the receipt refers (default: migros)')
     parser.add_argument('--digital', type=bool, default=False,
                         help='specify if the receipt is digital')
 
@@ -191,6 +194,12 @@ def generate_text(lines, path_text_out, punctuation, store):
                 if line.startswith(store.begin):
                     continue
 
+                if store is Manor_digital:
+                    if re.search('PUNTI', line) or re.search('NOME', line) or \
+                            re.search('NUMERO', line) or re.search('QUANTIT', line) or \
+                            re.match("[0-9/]+$", line):
+                        continue
+
                 if store is Esselunga:
                     if re.search(b, line):
                         continue
@@ -266,6 +275,11 @@ def generate_csv(path_csv_out, path_text_out, store):
                 if isfloat(costs[0]):
                     prices.append(costs[-1])
 
+                elif store == Manor_digital:
+                    for c in costs:
+                        if isprice(c):
+                            prices.append(c)
+
                 # Multiple products
                 else:
                     moltiplicator = costs[0]
@@ -302,6 +316,10 @@ def generate_csv(path_csv_out, path_text_out, store):
 
             p = re.split(r'(\d+)', line)[0]
 
+            if store is Manor_digital:
+                if p == '':
+                    p = 'Total'
+
             if store is Lidl:
                 if len(p) < 3:
                     continue
@@ -326,7 +344,7 @@ def generate_csv(path_csv_out, path_text_out, store):
                     curr_price.append(c)
 
             if len(curr_price) == 0:
-                if store == Migros_digital:
+                if store == Migros_digital or store == Manor_digital:
                     verify = True
                     continue
                 else:
@@ -392,13 +410,17 @@ def main(args, csv_out_dir, txt_out_dir):
     if args.store == 'migros':
         store = Migros_digital
     elif args.store == 'lidl':
-        print(args.digital)
         if args.digital:
             store = Lidl_digital
         else:
             store = Lidl
     elif args.store == 'esselunga':
         store = Esselunga
+    elif args.store == 'manor':
+        if args.digital:
+           store = Manor_digital
+        # else:
+        #     store = Manor
     else:
         raise ValueError('Invalid or missing store')
 
