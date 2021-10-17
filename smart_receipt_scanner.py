@@ -1,51 +1,52 @@
 import argparse
 import os
-import pandas as pd
 import re
 import string
 import subprocess
-from PIL import Image
 from pathlib import Path
+
+import pandas as pd
+from PIL import Image
 from pytesseract import image_to_string
 
 
-class Lidl():
+class Lidl:
     begin = 'CHF'
     finish = 'Totale'
 
 
-class Lidl_digital():
+class Lidl_digital:
     begin = 'CHF'
     finish = 'Il Tuo Prezzo Lidl '
 
 
-class Migros_digital():
+class Migros_digital:
     begin = 'CHF'
     begin2 = 'MMM Lugano'
     finish = '^TOTALE'
 
 
-class Esselunga():
+class Esselunga:
     begin = 'IVA'
     finish = '^TOTALE'
 
 
-class Esselunga_digital():
+class Esselunga_digital:
     begin = 'IVA'
     finish = '^TOTALE'
 
 
-class Coop():
+class Coop:
     begin = 'CHF'
     finish = '^TOTALE'
 
 
-class Carrefour():
+class Carrefour:
     begin = 'CHF'
     finish = '^TOTALE'
 
 
-class Manor_digital():
+class Manor_digital:
     begin = r'\d{2}/\d{2}/\d{2}'
     finish = '\f'
 
@@ -57,7 +58,8 @@ def parse_args():
                         help='path to the image of the receipt to scan (default: None)')
     parser.add_argument('--txt', default=None, type=str,
                         help='path to the txt containing the receipt (default: None)')
-    parser.add_argument('--store', default='migros', choices=['migros', 'lidl', 'esselunga', 'manor', 'coop', 'carrefour'],
+    parser.add_argument('--store', default='migros', choices=['migros', 'lidl', 'esselunga', 'manor'],
+                        #  , 'coop', # 'carrefour'],
                         help='choose a store to which the receipt refers (default: migros)')
     parser.add_argument('--digital', type=bool, default=False,
                         help='specify if the receipt is digital')
@@ -75,28 +77,23 @@ def check_dir(directory):
     os.makedirs(directory, exist_ok=True)
 
 
-def isprice(value):
+def is_price_or_float(value, kind='float'):
     """
-    Check if a string value is a price, that means a float with two decimals, and return a boolean.
+
     :param value: can be a number or a string
+    :param kind: if float, check if a string value is a float and return a boolean.
+                 if price, check if a string value is a price, that means a float with two decimals,
+                 and return a boolean.
     :return: True if the parameter is a float, False otherwise
     """
     try:
-        float_regex = '^([0-9]+\\.)[0-9]{2}$'
-        if re.match(float_regex, value):
-            return True
-    except ValueError:
-        return False
+        if kind == 'float':
+            float_regex = '^([0-9]+\\.)[0-9]+$'
+        elif kind == 'price':
+            float_regex = '^([0-9]+\\.)[0-9]{2}$'
+        else:
+            raise ValueError('Invalid or missing kind')
 
-
-def isfloat(value):
-    """
-    Check if a string value is a float and return a boolean.
-    :param value: can be a number or a string
-    :return: True if the parameter is a float, False otherwise
-    """
-    try:
-        float_regex = '^([0-9]+\\.)[0-9]+$'
         if re.match(float_regex, value):
             return True
     except ValueError:
@@ -156,6 +153,25 @@ def binarize_image(im, store):
     return im
 
 
+def compute_discount(line, punctuation=None, replace_punctuation=True):
+    """
+
+    """
+    if replace_punctuation:
+        line = replace_multiple(line, list(punctuation), '')
+    p = re.split(r'(\d+)', line)[0]
+    discount = float(replace_multiple(line, [p, '\n'], '').split()[0])
+    return discount
+
+
+def discount_total_price(discount, prices):
+    """
+
+    """
+    total = round(float(prices[-1].split()[0]), 2)
+    prices[-1] = '{:.2f}'.format(float(total - discount))
+
+
 def generate_text(lines, path_text_out, punctuation, store):
     """
     Generate a text file containing the receipt data
@@ -166,6 +182,7 @@ def generate_text(lines, path_text_out, punctuation, store):
 
     """
     b = re.compile(store.begin)
+    b2 = None
     if store is Migros_digital:
         b2 = re.compile(store.begin2)
     f = re.compile(store.finish)
@@ -225,9 +242,7 @@ def generate_text(lines, path_text_out, punctuation, store):
                     if re.search('^CUM ', line):
                         continue
                     if re.search('^CUMULUS', line):
-                        line = replace_multiple(line, list(punctuation), '')
-                        p = re.split(r'(\d+)', line)[0]
-                        discount = float(replace_multiple(line, [p, '\n'], '').split()[0])
+                        discount = compute_discount(line, punctuation)
                         line = 'SCONTO 0.00 1\nAZIONE ' + str(discount) + ' 1'
 
                     if re.search('^Buono Supplementare', line):
@@ -237,12 +252,8 @@ def generate_text(lines, path_text_out, punctuation, store):
                     if re.search('SUBTOTALE', line):
                         continue
                     if re.search('-', line):
-                        line = replace_multiple(line, list(punctuation), '')
-                        p = re.split(r'(\d+)', line)[0]
-                        discount = float(replace_multiple(line, [p, '\n'], '').split()[0])
-                        print(line)
+                        discount = compute_discount(line, punctuation)
                         line = 'AZIONE ' + str(discount) + ' 1'
-                        print(line)
 
                 if search_multiple(line, list(punctuation)):
                     line = replace_multiple(line, list(punctuation), '')
@@ -254,6 +265,16 @@ def generate_text(lines, path_text_out, punctuation, store):
                 text_file.writelines(line)
                 text_file.writelines('\n')
                 break
+
+
+def extract_price(costs, prices):
+    """
+    :param costs:
+    :param prices:
+    """
+    for c in costs:
+        if is_price_or_float(c, kind='price'):
+            prices.append(c)
 
 
 def generate_csv(path_csv_out, path_text_out, store):
@@ -279,13 +300,11 @@ def generate_csv(path_csv_out, path_text_out, store):
                 costs = line.split()
 
                 # Price for kilos
-                if isfloat(costs[0]):
+                if is_price_or_float(costs[0], kind='float'):
                     prices.append(costs[-1])
 
                 elif store == Manor_digital:
-                    for c in costs:
-                        if isprice(c):
-                            prices.append(c)
+                    extract_price(costs, prices)
 
                 # Multiple products
                 else:
@@ -301,8 +320,7 @@ def generate_csv(path_csv_out, path_text_out, store):
                 if re.search('SCONTO', line):
                     p = re.split(r'(\d+)', line)[0]
                     discount = float(replace_multiple(line, [p, '\n'], '').split()[1].split('S')[0])
-                    total = round(float(prices[-1].split()[0]), 2)
-                    prices[-1] = '{:.2f}'.format(float(total - discount))
+                    discount_total_price(discount, prices)
                     continue
 
             if store is Migros_digital:
@@ -311,10 +329,8 @@ def generate_csv(path_csv_out, path_text_out, store):
                     continue
 
                 if re.search('^AZIONE', line):
-                    p = re.split(r'(\d+)', line)[0]
-                    discount = float(replace_multiple(line, [p, '\n'], '').split()[0])
-                    total = round(float(prices[-1].split()[0]), 2)
-                    prices[-1] = '{:.2f}'.format(float(total - discount))
+                    discount = compute_discount(line, replace_punctuation=False)
+                    discount_total_price(discount, prices)
                     continue
 
             if store is Lidl_digital:
@@ -333,8 +349,7 @@ def generate_csv(path_csv_out, path_text_out, store):
                 if line.startswith('Sconto'):
                     p = re.split(r'(\d+)', line)[0]
                     discount = float(replace_multiple(line, [p, '\n'], '').split()[-1])
-                    total = round(float(prices[-1].split()[0]), 2)
-                    prices[-1] = '{:.2f}'.format(float(total - discount))
+                    discount_total_price(discount, prices)
                     continue
 
             products.append(p)
@@ -346,9 +361,7 @@ def generate_csv(path_csv_out, path_text_out, store):
 
             curr_costs = cost.split()
             curr_price = []
-            for c in curr_costs:
-                if isprice(c):
-                    curr_price.append(c)
+            extract_price(curr_costs, curr_price)
 
             if len(curr_price) == 0:
                 if store == Migros_digital or store == Manor_digital:
@@ -392,7 +405,8 @@ def run(path_text_out, path_csv_out, store, im=None):
         # The original image should be taken with scanbot without flash, shadows and with neutral background
         im = binarize_image(im, store)
 
-        # It is possible to change the language of the receipt. If any language is specified, english is used as default.
+        # It is possible to change the language of the receipt.
+        # If any language is specified, english is used as default.
         receipt_text = image_to_string(im, lang='ita')
         lines = receipt_text.split('\n')
 
@@ -413,6 +427,7 @@ def main(args, csv_out_dir, txt_out_dir):
     :param csv_out_dir:
     :param txt_out_dir:
     """
+    store = None
 
     if args.store == 'migros':
         store = Migros_digital
@@ -428,7 +443,7 @@ def main(args, csv_out_dir, txt_out_dir):
             store = Esselunga
     elif args.store == 'manor':
         if args.digital:
-           store = Manor_digital
+            store = Manor_digital
         # else:
         #     store = Manor
     else:
