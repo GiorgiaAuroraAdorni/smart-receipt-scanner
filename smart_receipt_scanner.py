@@ -8,6 +8,7 @@ from PIL import Image
 from pathlib import Path
 from pytesseract import image_to_string
 
+
 class Lidl():
     begin = 'CHF'
     finish = 'Totale'
@@ -29,6 +30,11 @@ class Esselunga():
     finish = '^TOTALE'
 
 
+class Esselunga_digital():
+    begin = 'IVA'
+    finish = '^TOTALE'
+
+
 class Coop():
     begin = 'CHF'
     finish = '^TOTALE'
@@ -37,6 +43,7 @@ class Coop():
 class Carrefour():
     begin = 'CHF'
     finish = '^TOTALE'
+
 
 class Manor_digital():
     begin = r'\d{2}/\d{2}/\d{2}'
@@ -290,7 +297,7 @@ def generate_csv(path_csv_out, path_text_out, store):
                 verify = False
                 continue
 
-            if store is Esselunga:
+            if store is Esselunga or store is Esselunga_digital:
                 if re.search('SCONTO', line):
                     p = re.split(r'(\d+)', line)[0]
                     discount = float(replace_multiple(line, [p, '\n'], '').split()[1].split('S')[0])
@@ -348,7 +355,7 @@ def generate_csv(path_csv_out, path_text_out, store):
                     verify = True
                     continue
                 else:
-                    if store == Esselunga:
+                    if store == Esselunga or store == Esselunga_digital:
                         prices.append(curr_costs[-1])
                     else:
                         prices.append(cost)
@@ -391,7 +398,7 @@ def run(path_text_out, path_csv_out, store, im=None):
 
         punctuation = replace_multiple(string.punctuation, ['.', ','], '')
 
-        if store == Esselunga:
+        if store == Esselunga or store == Esselunga_digital:
             punctuation = punctuation + '‹›°«“*‘î)' + string.ascii_lowercase
 
         generate_text(lines, path_text_out, punctuation, store)
@@ -415,7 +422,10 @@ def main(args, csv_out_dir, txt_out_dir):
         else:
             store = Lidl
     elif args.store == 'esselunga':
-        store = Esselunga
+        if args.digital:
+            store = Esselunga_digital
+        else:
+            store = Esselunga
     elif args.store == 'manor':
         if args.digital:
            store = Manor_digital
