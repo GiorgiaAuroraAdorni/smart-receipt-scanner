@@ -224,7 +224,7 @@ def generate_text(lines, path_text_out, punctuation, store):
                             re.match("[0-9/]+$", line):
                         continue
 
-                if store is Esselunga:
+                if store is Esselunga or store is Esselunga_digital:
                     if re.search(b, line):
                         continue
                     if re.search('PUNTI FRAGOLA', line):
@@ -256,6 +256,8 @@ def generate_text(lines, path_text_out, punctuation, store):
                         line = 'AZIONE ' + str(discount) + ' 1'
 
                 if search_multiple(line, list(punctuation)):
+                    if store is Esselunga_digital and re.search('Buoni potenziamento', line):
+                        line = line.upper()
                     line = replace_multiple(line, list(punctuation), '')
 
                 text_file.writelines(line)
@@ -359,9 +361,12 @@ def generate_csv(path_csv_out, path_text_out, store):
                 verify = True
                 continue
 
-            curr_costs = cost.split()
-            curr_price = []
-            extract_price(curr_costs, curr_price)
+            if store == Esselunga_digital and re.search('BUONI POTENZIAMENTO', line):
+                curr_price = ['-' + cost.split('S')[0]]
+            else:
+                curr_costs = cost.split()
+                curr_price = []
+                extract_price(curr_costs, curr_price)
 
             if len(curr_price) == 0:
                 if store == Migros_digital or store == Manor_digital:
